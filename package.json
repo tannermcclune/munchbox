@@ -27,6 +27,7 @@
 		"@sveltejs/adapter-node": "^5.2.12",
 		"dotenv": "^16.4.7",
 		"firebase": "^11.3.0",
-		"node-fetch": "^3.3.2"
+		"node-fetch": "^3.3.2",
+		"vercel": "^41.0.2"
 	}
 }
