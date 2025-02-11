@@ -6,55 +6,87 @@ dotenv.config();
 interface Place {
   name: string;
   types: string[];  // Add this to capture the types array from the API
-  // Add other relevant fields based on the API response you need
+  rating?: number;
+  vicinity?: string;  // address
+  // Add other fields you want to display
 }
 
 interface PlacesApiResponse {
   results: Place[];
+  next_page_token?: string; // Include next_page_token if it exists
   // Add other relevant fields based on the API response you need
 }
 
-export async function GET({ url }: { url: URL }) {
-  // Expecting query parameters: location (lat,lng) and price (1, 2, etc.)
-  const location = url.searchParams.get('location');
-  const price = url.searchParams.get('price');  // This will be used for both min and max price
-  const radius = url.searchParams.get('radius');
-  const googlePlacesKey = process.env.GOOGLE_PLACES_API_KEY;  // Access key securely on the server
+function shuffleArray<T>(array: T[]): T[] {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
 
-  if (!location || !price || !radius) {
+async function getAllPlaces(initialUrl: string): Promise<Place[]> {
+  let allResults: Place[] = [];
+  let nextPageToken: string | undefined;
+  
+  // Get first page
+  const firstResponse = await fetch(initialUrl);
+  const firstData = await firstResponse.json() as PlacesApiResponse;
+  allResults = firstData.results || [];
+  nextPageToken = firstData.next_page_token;
+  
+  // If there's a next page, wait 2 seconds (required by Google) and fetch next page
+  if (nextPageToken) {
+    // Google requires a short delay before using the next_page_token
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    const nextUrl = `${initialUrl}&pagetoken=${nextPageToken}`;
+    const nextResponse = await fetch(nextUrl);
+    const nextData = await nextResponse.json() as PlacesApiResponse;
+    
+    if (nextData.results) {
+      allResults.push(...nextData.results);
+    }
+  }
+  
+  return allResults;
+}
+
+export async function GET({ url }: { url: URL }) {
+  const location = url.searchParams.get('location');
+  const price = url.searchParams.get('price');
+  const googlePlacesKey = process.env.GOOGLE_PLACES_API_KEY;
+
+  if (!location || !price) {
     return new Response(JSON.stringify({ error: 'Missing required parameters' }), { status: 400 });
   }
 
-  // Construct the Google Places API URL with both minprice and maxprice
-  const apiUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location}&radius=${radius}&type=restaurant&price=${price}&key=${googlePlacesKey}`;
+  const initialUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location}&rankby=distance&type=restaurant|cafe|bar&minprice=${price}&maxprice=${price}&key=${googlePlacesKey}`;
 
   try {
-    const res = await fetch(apiUrl);
-    const data = await res.json() as PlacesApiResponse;
+    const allResults = await getAllPlaces(initialUrl);
+    const excludedTypes = ['lodging', 'golf_course', 'tourist_attraction', 'park', 'hotel', 'resort'];
+    
+    const seenNames = new Set<string>();
+    const filteredResults = allResults.reduce((acc: Place[], place: Place) => {
+      if (
+        (place.types.includes('restaurant') || 
+         place.types.includes('cafe') || 
+         place.types.includes('food')) &&
+        !excludedTypes.some(type => place.types.includes(type)) &&
+        !seenNames.has(place.name)
+      ) {
+        seenNames.add(place.name);
+        acc.push(place);
+      }
+      return acc;
+    }, []);
 
-    if (data && Array.isArray(data.results)) {
-      // Filter for places that are primarily restaurants
-      const restaurantResults = data.results.filter((place: Place) => {
-        // Check if 'restaurant' is the primary type (first in the array)
-        // AND exclude places that have certain types we don't want
-        const excludedTypes = ['lodging', 'golf_course', 'tourist_attraction', 'park'];
-        return (
-          place.types.includes('restaurant') &&
-          !excludedTypes.some(type => place.types.includes(type))
-        );
-      });
-
-      // Filter out duplicates based on place name
-      const uniqueResults = restaurantResults.filter((result: Place, index: number, self: Place[]) =>
-        index === self.findIndex((r: Place) => r.name === result.name)
-      );
-
-      return new Response(JSON.stringify({ ...data, results: uniqueResults }), { status: 200 });
-    }
-
-    // Optionally, add logic to store this data in Firebase Firestore
-
-    return new Response(JSON.stringify(data), { status: 200 });
+    return new Response(JSON.stringify({ 
+      results: filteredResults,
+      totalFetched: allResults.length,
+      totalFiltered: filteredResults.length 
+    }), { status: 200 });
   } catch (error) {
     return new Response(JSON.stringify({ error: 'Error fetching data from Google Places API' }), { status: 500 });
   }
