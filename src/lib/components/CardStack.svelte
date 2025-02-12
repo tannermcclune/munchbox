@@ -40,6 +40,9 @@
                 on:touchmove={handleTouchMove}
                 on:touchend={handleTouchEnd}
             >
+                {#if card.imageUrl}
+                    <img src={card.imageUrl} alt={card.title} class="card-image" />
+                {/if}
                 <h2>{card.title}</h2>
             </div>
         {/each}
@@ -105,5 +108,13 @@
     @keyframes fadeIn {
         from { opacity: 0; transform: translateY(20px); }
         to { opacity: 1; transform: translateY(0); }
+    }
+
+    .card-image {
+        width: 100%;
+        height: 200px;
+        object-fit: cover;
+        border-top-left-radius: 10px;
+        border-top-right-radius: 10px;
     }
 </style> 

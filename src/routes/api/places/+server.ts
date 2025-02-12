@@ -3,11 +3,21 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Define the structure of the expected response from Google Places API
+interface Photo {
+  photo_reference: string;
+  html_attributions?: string[];
+  height?: number;
+  width?: number;
+  // Add other relevant fields based on the API response you need
+}
+
 interface Place {
   name: string;
   types: string[];  // Add this to capture the types array from the API
   rating?: number;
   vicinity?: string;  // address
+  photos?: Photo[];  // Add this to capture the photos array from the API
+  photo_reference?: string;  // Add this to capture the photo reference
   // Add other fields you want to display
 }
 
@@ -77,7 +87,19 @@ export async function GET({ url }: { url: URL }) {
         !seenNames.has(place.name)
       ) {
         seenNames.add(place.name);
-        acc.push(place);
+        // Try to find a food-related photo
+        const foodPhoto = place.photos?.find(photo => 
+          photo.html_attributions?.some(attr => 
+            attr.toLowerCase().includes('food') || 
+            attr.toLowerCase().includes('dish') || 
+            attr.toLowerCase().includes('meal')
+          )
+        );
+        
+        acc.push({
+          ...place,
+          photo_reference: foodPhoto?.photo_reference || place.photos?.[0]?.photo_reference
+        });
       }
       return acc;
     }, []);

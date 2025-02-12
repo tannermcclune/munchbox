@@ -20,6 +20,7 @@
     let isLoading = false;
     let loadingMessage = '';
     let fadeIn = false;
+    let googlePlacesKey = '';
 
     async function convertZipToCoords(zip: string): Promise<[number, number] | null> {
         try {
@@ -80,7 +81,10 @@
                         types: restaurant.types,
                         rating: restaurant.rating,
                         vicinity: restaurant.vicinity,
-                        color: ['#FF6B6B', '#4ECDC4', '#45B7D1'][index % 3]
+                        color: ['#FF6B6B', '#4ECDC4', '#45B7D1'][index % 3],
+                        imageUrl: restaurant.photo_reference 
+                            ? `/api/photo?photo_reference=${restaurant.photo_reference}`
+                            : undefined
                     }));
 
                     setTimeout(() => {

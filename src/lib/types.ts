@@ -5,4 +5,5 @@ export interface Card {
     types: string[];
     rating?: number;
     vicinity?: string;
+    imageUrl?: string;
 } 
